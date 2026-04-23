@@ -17,19 +17,8 @@
 #include <borealis/core/application.hpp>
 #include <borealis/core/assets.hpp>
 #include <borealis/core/i18n.hpp>
-#ifdef USE_BOOST_FILESYSTEM
-#include <boost/filesystem.hpp>
-namespace fs = boost::filesystem;
-#elif __has_include(<filesystem>)
-#include <filesystem>
-namespace fs = std::filesystem;
-#elif __has_include("experimental/filesystem")
-#include <experimental/filesystem>
-namespace fs = std::experimental::filesystem;
-#else
-#error "Failed to include <filesystem> header!"
-#endif
-#include <fstream>
+#include <dirent.h>
+#include <cstdio>
 #include <nlohmann/json.hpp>
 #include <string>
 
@@ -66,48 +55,56 @@ static void loadLocale(std::string locale, nlohmann::json* target)
 #else
     std::string localePath = BRLS_ASSET("i18n/" + locale);
 
-    if (!fs::exists(localePath))
+    DIR* dir = opendir(localePath.c_str());
+    if (!dir)
     {
         Logger::error("Cannot load locale {}: directory {} doesn't exist", locale, localePath);
         return;
     }
-    else if (!fs::is_directory(localePath))
-    {
-        Logger::error("Cannot load locale {}: {} isn't a directory", locale, localePath);
-        return;
-    }
 
-    // Iterate over all JSON files in the directory
-    for (const fs::directory_entry& entry : fs::directory_iterator(localePath))
+    struct dirent* entry;
+    while ((entry = readdir(dir)) != nullptr)
     {
-        if (fs::is_directory(entry))
+        if (entry->d_type == DT_DIR)
             continue;
 
-        std::string name = entry.path().filename().string();
+        std::string name = entry->d_name;
 
         if (!endsWith(name, ".json"))
             continue;
 
-        std::string path = entry.path().string();
+        std::string path = localePath + "/" + name;
+
+        FILE* f = fopen(path.c_str(), "r");
+        if (!f)
+        {
+            Logger::error("Cannot open locale file: {}", path);
+            continue;
+        }
+
+        fseek(f, 0, SEEK_END);
+        long size = ftell(f);
+        fseek(f, 0, SEEK_SET);
+
+        std::string content(size, '\0');
+        fread(&content[0], 1, size, f);
+        fclose(f);
 
         nlohmann::json strings;
-
-        std::ifstream jsonStream;
-        jsonStream.open(path);
-
         try
         {
-            jsonStream >> strings;
+            strings = nlohmann::json::parse(content);
         }
         catch (const std::exception& e)
         {
             Logger::error("Error while loading \"{}\": {}", path, e.what());
+            continue;
         }
-
-        jsonStream.close();
 
         (*target)[name.substr(0, name.length() - 5)] = strings;
     }
+
+    closedir(dir);
 #endif /* USE_LIBROMFS */
 }
 

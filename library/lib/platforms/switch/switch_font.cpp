@@ -37,7 +37,14 @@ void SwitchFontLoader::loadFonts()
     if (R_SUCCEEDED(rc))
         Application::loadFontFromMemory(FONT_REGULAR, font.address, font.size, false);
     else
+    {
         Logger::error("switch: could not load Standard shared font: {:#x}", rc);
+        // Fallback to bundled font
+        if (this->loadFontFromFile(FONT_REGULAR, "romfs:/font/switch_font.ttf"))
+            Logger::info("switch: loaded fallback font from romfs");
+        else
+            Logger::error("switch: could not load fallback font from romfs");
+    }
 
     // Simplified Chinese
     // custom Font

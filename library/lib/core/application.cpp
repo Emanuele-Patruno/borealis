@@ -78,8 +78,13 @@ bool Application::init()
     if (Application::ORIGINAL_WINDOW_HEIGHT == 0)
         Application::ORIGINAL_WINDOW_HEIGHT = 720;
 
+    Logger::info("init: A - before createPlatform");
+
     // Init platform
     Application::platform = Platform::createPlatform();
+
+    Logger::info("init: B - after createPlatform");
+
     Application::notificationManager = new NotificationManager();
 
     if (!Application::platform)
@@ -89,11 +94,16 @@ bool Application::init()
     }
 
     Logger::info("Using platform {}", platform->getName());
+    Logger::info("init: C - before loadTranslations");
 
     // Init i18n
     loadTranslations();
 
+    Logger::info("init: D - before Threading::start");
+
     Threading::start();
+
+    Logger::info("init: E - done");
 
     Application::inited = true;
 
